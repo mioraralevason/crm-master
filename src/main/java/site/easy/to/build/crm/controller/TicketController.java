@@ -1,34 +1,56 @@
 package site.easy.to.build.crm.controller;
 
-import jakarta.persistence.EntityManager;
+import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.security.GeneralSecurityException;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.util.Pair;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.*;
-import site.easy.to.build.crm.entity.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+
+import jakarta.persistence.EntityManager;
+import site.easy.to.build.crm.entity.Customer;
+import site.easy.to.build.crm.entity.CustomerLoginInfo;
+import site.easy.to.build.crm.entity.EmailTemplate;
+import site.easy.to.build.crm.entity.Expense;
+import site.easy.to.build.crm.entity.OAuthUser;
+import site.easy.to.build.crm.entity.Ticket;
+import site.easy.to.build.crm.entity.User;
 import site.easy.to.build.crm.entity.settings.TicketEmailSettings;
 import site.easy.to.build.crm.google.service.acess.GoogleAccessService;
 import site.easy.to.build.crm.google.service.gmail.GoogleGmailApiService;
+import site.easy.to.build.crm.repository.ExpenseRepository;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.settings.TicketEmailSettingsService;
 import site.easy.to.build.crm.service.ticket.TicketService;
 import site.easy.to.build.crm.service.user.UserService;
-import site.easy.to.build.crm.util.*;
-
-import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.security.GeneralSecurityException;
-import java.time.LocalDateTime;
-import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import site.easy.to.build.crm.util.AuthenticationUtils;
+import site.easy.to.build.crm.util.AuthorizationUtil;
+import site.easy.to.build.crm.util.DatabaseUtil;
+import site.easy.to.build.crm.util.LogEntityChanges;
+import site.easy.to.build.crm.util.StringUtils;
 
 @Controller
 @RequestMapping("/employee/ticket")
@@ -41,11 +63,13 @@ public class TicketController {
     private final TicketEmailSettingsService ticketEmailSettingsService;
     private final GoogleGmailApiService googleGmailApiService;
     private final EntityManager entityManager;
+    private final ExpenseRepository expenseRepository;
 
 
     @Autowired
     public TicketController(TicketService ticketService, AuthenticationUtils authenticationUtils, UserService userService, CustomerService customerService,
-                            TicketEmailSettingsService ticketEmailSettingsService, GoogleGmailApiService googleGmailApiService, EntityManager entityManager) {
+                            TicketEmailSettingsService ticketEmailSettingsService, GoogleGmailApiService googleGmailApiService, EntityManager entityManager,
+                            ExpenseRepository expenseRepository) {
         this.ticketService = ticketService;
         this.authenticationUtils = authenticationUtils;
         this.userService = userService;
@@ -53,6 +77,7 @@ public class TicketController {
         this.ticketEmailSettingsService = ticketEmailSettingsService;
         this.googleGmailApiService = googleGmailApiService;
         this.entityManager = entityManager;
+        this.expenseRepository = expenseRepository;
     }
 
     @GetMapping("/show-ticket/{id}")
@@ -98,6 +123,7 @@ public class TicketController {
         model.addAttribute("tickets",tickets);
         return "ticket/my-tickets";
     }
+    
     @GetMapping("/create-ticket")
     public String showTicketCreationForm(Model model, Authentication authentication) {
         int userId = authenticationUtils.getLoggedInUserId(authentication);
@@ -372,5 +398,61 @@ public class TicketController {
                 }
             }
         }
+    }
+
+    @PostMapping("/add-expense")
+    public String addExpense(@RequestParam("ticketId") int ticketId,
+                            @RequestParam("amount") double amount,
+                            @RequestParam("expenseDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate expenseDate,
+                            Authentication authentication) {
+
+        int userId = authenticationUtils.getLoggedInUserId(authentication);
+        User loggedInUser = userService.findById(userId);
+        if (loggedInUser.isInactiveUser()) {
+            return "error/account-inactive";
+        }
+
+        Ticket ticket = ticketService.findByTicketId(ticketId);
+        if (ticket == null) {
+            return "error/not-found";
+        }
+
+        // Check if the user is authorized to add an expense for this ticket
+        if (!AuthorizationUtil.checkIfUserAuthorized(ticket.getEmployee(), loggedInUser) && !AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return "error/access-denied";
+        }
+
+        // Create and save the expense
+        Expense expense = new Expense(amount, expenseDate);
+        expenseRepository.save(expense);
+
+        // Link the expense to the ticket
+        ticket.setExpense(expense);
+        ticketService.save(ticket);
+
+        return "redirect:/employee/ticket/assigned-tickets";
+    }
+
+    @GetMapping("/add-expense/{ticketId}")
+    public String showAddExpenseForm(@PathVariable("ticketId") int ticketId, Model model, Authentication authentication) {
+        int userId = authenticationUtils.getLoggedInUserId(authentication);
+        User loggedInUser = userService.findById(userId);
+        if (loggedInUser.isInactiveUser()) {
+            return "error/account-inactive";
+        }
+
+        Ticket ticket = ticketService.findByTicketId(ticketId);
+        if (ticket == null) {
+            return "error/not-found";
+        }
+
+        // Check if the user is authorized to add an expense for this ticket
+        if (!AuthorizationUtil.checkIfUserAuthorized(ticket.getEmployee(), loggedInUser) && !AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return "error/access-denied";
+        }
+
+        // Pass the ticketId to the view
+        model.addAttribute("ticketId", ticketId);
+        return "ticket/add-expense";
     }
 }
