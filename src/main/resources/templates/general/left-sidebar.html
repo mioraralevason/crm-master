@@ -38,6 +38,22 @@
                     </a>
                 </li>
 
+                <li class="nav-small-cap">--- Data generator</li>
+                <li>
+                    <a class="has-arrow waves-effect waves-dark" href="javascript:void(0)" aria-expanded="false">
+                        <i class="fas fa-random"></i>
+                        <span class="hide-menu">Data Generator</span>
+                    </a>
+                    <ul aria-expanded="false" class="collapse">
+                        <li>
+                            <a th:href="${home + 'generator/data'}">Customers</a>
+                        </li>
+                        <li>
+                            <a th:href="${home + 'generator/data/tickets'}">Tickets</a>
+                        </li>
+                    </ul>
+                </li>
+
                 <li class="nav-small-cap">--- Settings</li>
                 <li>
                     <a class="has-arrow waves-effect waves-dark" href="javascript:void(0)">
@@ -56,6 +72,23 @@
                         </li>
                     </ul>
                 </li>
+
+                <li class="nav-small-cap">--- Budget</li>
+                <li>
+                    <a class="has-arrow waves-effect waves-dark" href="javascript:void(0)" aria-expanded="false">
+                        <i class="fas fa-random"></i>
+                        <span class="hide-menu">Customer budget</span>
+                    </a>
+                    <ul aria-expanded="false" class="collapse">
+                        <li>
+                            <a th:href="${home + 'employee/budget/create'}">Create budget</a>
+                        </li>
+                        <li>
+                            <a th:href="${home + 'employee/budget/all'}">All budgets</a>
+                        </li>
+                    </ul>
+                </li>
+
                 <li class="nav-small-cap">--- Google Services</li>
                 <li>
                     <a class="has-arrow waves-effect waves-dark" href="javascript:void(0)">
