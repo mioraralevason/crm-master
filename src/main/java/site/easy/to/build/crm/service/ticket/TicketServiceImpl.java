@@ -1,5 +1,6 @@
 package site.easy.to.build.crm.service.ticket;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 import org.springframework.data.domain.PageRequest;
@@ -115,5 +116,15 @@ public class TicketServiceImpl implements TicketService{
     @Override
     public List<Ticket> findByCustomer(Customer customer) {
         return this.ticketRepository.findByCustomerCustomerId(customer.getCustomerId());
+    }
+
+    @Override
+    public BigDecimal getTicketExpenseAmount(Ticket ticket) {
+        if (ticket.getExpense() != null) {
+            double amount = ticket.getExpense().getAmount();
+            return new BigDecimal(amount);
+        }
+        
+        return BigDecimal.ZERO;
     }
 }

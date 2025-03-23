@@ -1,5 +1,6 @@
 package site.easy.to.build.crm.service.lead;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 import org.springframework.data.domain.PageRequest;
@@ -99,5 +100,15 @@ public class LeadServiceImpl implements LeadService {
     @Override
     public List<Lead> findByCustomer(Customer customer) {
         return this.leadRepository.findByCustomerCustomerId(customer.getCustomerId());
+    }
+
+    @Override
+    public BigDecimal getLeadExpenseAmount(Lead lead) {
+        if (lead.getExpense() != null) {
+            double amount = lead.getExpense().getAmount(); 
+            return new BigDecimal(amount);
+        }
+        
+        return BigDecimal.ZERO;
     }   
 }
