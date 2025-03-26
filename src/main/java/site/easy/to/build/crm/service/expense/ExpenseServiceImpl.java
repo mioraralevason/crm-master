@@ -1,5 +1,6 @@
 package site.easy.to.build.crm.service.expense;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,4 +43,16 @@ public class ExpenseServiceImpl implements ExpenseService {
     public List<Expense> findAll() {
         return expenseRepository.findAll();
     }    
+
+    @Override
+    public BigDecimal getTotalExpenses() {
+        List<Expense> expenses = this.expenseRepository.findAll();
+        BigDecimal totalExpenses = BigDecimal.ZERO;
+
+        for (Expense expense : expenses) {
+            totalExpenses = totalExpenses.add(new BigDecimal(expense.getAmount()));
+        }
+
+        return totalExpenses;
+    }
 }
