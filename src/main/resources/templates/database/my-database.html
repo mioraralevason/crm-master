@@ -43,6 +43,14 @@
                     <div class="card">
                         <div class="card-body text-center">
                             <h3 class="text-info">Message</h3>
+                            <!-- Affichage des erreurs -->
+                            <div th:if="${errors != null and not #lists.isEmpty(errors)}" class="alert alert-danger">
+                                <h4 class="alert-heading">Erreurs lors de l'importation</h4>
+                                <ul>
+                                    <li th:each="error : ${errors}" th:text="${error}"></li>
+                                </ul>
+                            </div>
+                            <!-- Message général -->
                             <p th:text="${message}"></p>
                         </div>
                     </div>
@@ -54,11 +62,19 @@
                 <div class="col-lg-12">
                     <div class="card">
                         <div class="card-body">
-                            <h4 class="card-title">Import CSV File</h4>
-                            <form action="#" th:action="@{/database/import}" method="post" enctype="multipart/form-data">
+                            <h4 class="card-title">Import CSV Files</h4>
+                            <form action="#" th:action="@{/database/importCSV}" method="post" enctype="multipart/form-data">
                                 <div class="form-group">
-                                    <label for="csvFile">Choose CSV File</label>
-                                    <input type="file" name="file" id="csvFile" class="form-control" accept=".csv" required />
+                                    <label for="csvFile1">Choose Leads/Tickets CSV File (Feuille 1)</label>
+                                    <input type="file" name="file1" id="csvFile1" class="form-control" accept=".csv" />
+                                </div>
+                                <div class="form-group">
+                                    <label for="csvFile2">Choose Customers CSV File (Feuille 3)</label>
+                                    <input type="file" name="file2" id="csvFile2" class="form-control" accept=".csv" />
+                                </div>
+                                <div class="form-group">
+                                    <label for="csvFile3">Choose Budget CSV File (Feuille 4)</label>
+                                    <input type="file" name="file3" id="csvFile3" class="form-control" accept=".csv" />
                                 </div>
                                 <button type="submit" class="btn btn-primary">Upload</button>
                             </form>
@@ -96,10 +112,10 @@
     var home = /*[[${home}]]*/ null;
 </script>
 <script th:src="@{/js/library/jquery-3.2.1.min.js}" type="text/javascript"></script>
-<!--    &lt;!&ndash; Bootstrap tether Core JavaScript &ndash;&gt;-->
+<!--    <!– Bootstrap tether Core JavaScript –>-->
 <script th:src="@{/js/library/popper.min.js}" type="text/javascript"></script>
 <script th:src="@{/js/library/bootstrap.min.js}" type="text/javascript"></script>
-<!--    &lt;!&ndash; slimscrollbar scrollbar JavaScript &ndash;&gt;-->
+<!--    <!– slimscrollbar scrollbar JavaScript –>-->
 <script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}" type="text/javascript"></script>
 <!--Wave Effects -->
 <script th:src="@{/js/library/waves.js}" type="text/javascript"></script>
@@ -110,6 +126,6 @@
 <script th:src="@{/js/library/jquery.sparkline.min.js}" type="text/javascript"></script>
 <!--Custom JavaScript -->
 <script th:src="@{/js/library/custom.min.js}" type="text/javascript"></script>
-<script  th:src="@{/js/library/jquery-ui.min.js}"></script>
+<script th:src="@{/js/library/jquery-ui.min.js}"></script>
 </body>
 </html>

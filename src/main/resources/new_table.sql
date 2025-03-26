@@ -39,3 +39,32 @@ ADD CONSTRAINT `fk_ticket_expense` FOREIGN KEY (`expense_id`) REFERENCES `expens
 ALTER TABLE `trigger_lead` 
 ADD COLUMN `expense_id` INT UNSIGNED DEFAULT NULL,
 ADD CONSTRAINT `fk_lead_expense` FOREIGN KEY (`expense_id`) REFERENCES `expense` (`expense_id`);
+
+
+INSERT INTO `alerte_rate` (percentage) VALUES (50);
+
+INSERT INTO `expense` (`amount`, `expense_date`) VALUES
+(3000000.50, '2025-08-01'),
+(600000.75, '2025-08-05'),
+(5500000.50, '2025-09-01'),
+(2500000.75, '2025-09-05'),
+(100000.00, '2025-09-10'),
+(1000000.50, '2025-10-01'),
+(2000000.75, '2025-10-05'),
+(1500000.00, '2025-10-10'),
+(3000000.25, '2025-11-01'),
+(25000.50, '2025-11-15'),
+(700000.00, '2025-12-01'),
+(350000.75, '2025-12-10');
+
+
+INSERT INTO `customer_budget` (`customer_id`, `label`, `amount`, `transaction_date`) VALUES
+(1, 'Initial Budget', 1000000.00, '2025-10-01'),
+(1, 'Additional Budget', 500000.00, '2025-10-15'),
+(1, 'Additional Budget ii', 700000.00, '2025-11-15'),
+(2, 'Project Budget', 2000000.00, '2025-10-05'),
+(1, 'Q4 Budget', 150000.00, '2025-11-01'),
+(2, 'Marketing Budget', 100000.00, '2025-11-10'),
+(2, 'Marketing Budget ii', 450000.00, '2025-12-10'),
+(1, 'Year-End Budget', 300000.00, '2025-12-01'),
+(2, 'Final Budget', 200000.00, '2025-12-15');

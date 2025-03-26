@@ -22,17 +22,23 @@
                                 <p>Remaining budget: <span th:text="${budget}"></span></p>
                                 <p>Total budget: <span th:text="${totalBudget}"></span></p>
                             </div>
+                            
                             <div class="row">
                                 <div class="col-md-6">
                                     <form th:action="@{/employee/lead/confirm}" method="post">
                                         <input type="hidden" name="leadId" th:value="${pendingLead.leadId}" />
                                         <input type="hidden" name="amount" th:value="${pendingExpense.amount}" />
                                         <input type="hidden" name="expenseDate" th:value="${pendingExpense.expenseDate}" />
-                                        <button type="submit" class="btn btn-danger">Confirm and Save Expense</button>
+                                        
+                                        <button type="submit" class="btn btn-danger">
+                                            Confirm and Save Expense
+                                        </button>
                                     </form>
                                 </div>
                                 <div class="col-md-6">
-                                    <a th:href="@{/employee/lead/assigned-leads}" class="btn btn-secondary">Cancel</a>
+                                    <a th:href="@{/employee/lead/assigned-leads}" class="btn btn-secondary">
+                                        Cancel
+                                    </a>
                                 </div>
                             </div>
                         </div>

@@ -47,7 +47,9 @@ public class CsvService {
             if (fieldType.equals(int.class) || fieldType.equals(Integer.class)) {
                 return Integer.parseInt(value);
             } else if (fieldType.equals(double.class) || fieldType.equals(Double.class)) {
-                return Double.parseDouble(value);
+                // Remplacer la virgule par un point pour gérer les formats avec virgule décimale
+                String normalizedValue = value.replace(",", ".");
+                return Double.parseDouble(normalizedValue);
             } else if (fieldType.equals(boolean.class) || fieldType.equals(Boolean.class)) {
                 return Boolean.parseBoolean(value);
             } else if (fieldType.equals(String.class)) {
@@ -57,7 +59,7 @@ public class CsvService {
             } else if (List.class.isAssignableFrom(fieldType)) {
                 return Arrays.stream(value.split(","))
                         .map(String::trim)
-                        .collect(Collectors.toList()); 
+                        .collect(Collectors.toList());
             } else if (fieldType.equals(LocalDateTime.class)) {
                 return LocalDateTime.parse(value, DATE_TIME_FORMATTER);
             } else if (fieldType.equals(LocalTime.class)) {
@@ -65,7 +67,7 @@ public class CsvService {
             } else if (fieldType.equals(LocalDate.class)) {
                 return LocalDate.parse(value, DATE_FORMATTER);
             } else if (fieldType.equals(Date.class)) {
-                return Date.valueOf(LocalDate.parse(value, DATE_FORMATTER)); 
+                return Date.valueOf(LocalDate.parse(value, DATE_FORMATTER));
             }
         } catch (Exception e) {
             System.err.println("Erreur de parsing pour la valeur : " + value + " et le type : " + fieldType.getSimpleName());
