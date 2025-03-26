@@ -9,6 +9,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
@@ -82,164 +83,179 @@ public class DatabaseController {
     }
     
     @PostMapping("/database/importCSV")
-    @Transactional(rollbackFor = Exception.class)
-    public String importEspace(
-            @RequestParam("file1") MultipartFile file1,
-            @RequestParam("file2") MultipartFile file2,
-            @RequestParam("file3") MultipartFile file3,
-            Model model) {
+@Transactional(rollbackFor = Exception.class)
+public String importEspace(
+        @RequestParam("file1") MultipartFile file1,
+        @RequestParam("file2") MultipartFile file2,
+        @RequestParam("file3") MultipartFile file3,
+        Model model) {
 
-        if (file1.isEmpty() && file2.isEmpty() && file3.isEmpty()) {
-            model.addAttribute("message", "Erreur : Aucun fichier sélectionné.");
+    if (file1.isEmpty() && file2.isEmpty() && file3.isEmpty()) {
+        model.addAttribute("message", "Erreur : Aucun fichier sélectionné.");
+        return "database/my-database";
+    }
+
+    List<String> errors = new ArrayList<>();
+    int customersImported = 0, leadsImported = 0, ticketsImported = 0, budgetsImported = 0;
+    Path tempFile1 = null, tempFile2 = null, tempFile3 = null;
+
+    try {
+        // Traitement du fichier 2 (Customers)
+        if (!file2.isEmpty()) {
+            tempFile2 = Files.createTempFile("csv_upload_", file2.getOriginalFilename());
+            Files.copy(file2.getInputStream(), tempFile2, StandardCopyOption.REPLACE_EXISTING);
+            List<JavaImportDataFeuille3Dto> importedData2 = csvService.importCsv(tempFile2.toString(), JavaImportDataFeuille3Dto.class);
+            for (int i = 0; i < importedData2.size(); i++) {
+                JavaImportDataFeuille3Dto dto = importedData2.get(i);
+                int lineNumber = i + 1;
+                Customer existingCustomer = customerService.findByEmail(dto.getCustomerEmail());
+                if (existingCustomer != null) {
+                    errors.add("Fichier 2, Ligne " + lineNumber + " : Email en double détecté : " + dto.getCustomerEmail());
+                    continue;
+                }
+                Customer customer = new Customer();
+                customer.setEmail(dto.getCustomerEmail());
+                customer.setName(dto.getCustomerName());
+                customer.setUser(userService.findById(52));
+                customer.setCustomerLoginInfo(null);
+                customer.setCreatedAt(LocalDateTime.now());
+                customer.setCountry("Unknown");
+                customer.setPhone(generateRandomPhone());
+                customer.setAddress(generateRandomAddress());
+                customer.setCity("Unknown City");
+                customerService.save(customer);
+                customersImported++;
+            }
+        }
+
+        // Traitement du fichier 1 (Leads et Tickets)
+        if (!file1.isEmpty()) {
+            tempFile1 = Files.createTempFile("csv_upload_", file1.getOriginalFilename());
+            Files.copy(file1.getInputStream(), tempFile1, StandardCopyOption.REPLACE_EXISTING);
+            List<JavaImportDataFeuille1Dto> importedData1 = csvService.importCsv(tempFile1.toString(), JavaImportDataFeuille1Dto.class);
+            for (int i = 0; i < importedData1.size(); i++) {
+                JavaImportDataFeuille1Dto dto = importedData1.get(i);
+                int lineNumber = i + 1;
+                Customer customer = customerService.findByEmail(dto.getCustomerEmail());
+                if (customer == null) {
+                    errors.add("Fichier 1, Ligne " + lineNumber + " : Client introuvable pour l'email : " + dto.getCustomerEmail());
+                    continue;
+                }
+                Expense expense = null;
+                if (dto.getExpense() != null) {
+                    double amount = dto.getExpense();
+                    if (amount < 0) {
+                        errors.add("Fichier 1, Ligne " + lineNumber + " : Montant négatif non autorisé : " + amount);
+                        continue;
+                    }
+                    expense = new Expense();
+                    expense.setAmount(amount);
+                    expense.setExpenseDate(LocalDate.now());
+                    expense = expenseService.save(expense);
+                }
+                if ("lead".equalsIgnoreCase(dto.getType())) {
+                    String leadStatus = getRandomStatusLead();
+                    if (!leadStatus.matches("^(meeting-to-schedule|scheduled|archived|success|assign-to-sales)$")) {
+                        errors.add("Fichier 1, Ligne " + lineNumber + " : Statut de lead invalide : " + leadStatus);
+                        continue;
+                    }
+                    Lead lead = new Lead();
+                    lead.setName(dto.getSubjectOrName());
+                    lead.setStatus(leadStatus);
+                    lead.setCustomer(customer);
+                    lead.setManager(userService.findById(52));
+                    lead.setEmployee(userService.findById(53));
+                    lead.setCreatedAt(LocalDateTime.now());
+                    lead.setPhone(generateRandomPhone());
+                    lead.setGoogleDrive(false);
+                    if (expense != null) lead.setExpense(expense);
+                    leadService.save(lead);
+                    leadsImported++;
+                } else if ("ticket".equalsIgnoreCase(dto.getType())) {
+                    String ticketStatus = getRandomStatusTicket();
+                    if (!ticketStatus.matches("^(open|assigned|on-hold|in-progress|resolved|closed|reopened|pending-customer-response|escalated|archived)$")) {
+                        errors.add("Fichier 1, Ligne " + lineNumber + " : Statut de ticket invalide : " + ticketStatus);
+                        continue;
+                    }
+                    String priority = getRandomPriority();
+                    if (!priority.matches("^(low|medium|high|closed|urgent|critical)$")) {
+                        errors.add("Fichier 1, Ligne " + lineNumber + " : Priorité invalide générée : " + priority);
+                        continue;
+                    }
+                    Ticket ticket = new Ticket();
+                    ticket.setSubject(dto.getSubjectOrName());
+                    ticket.setStatus(ticketStatus);
+                    ticket.setCustomer(customer);
+                    ticket.setManager(userService.findById(52));
+                    ticket.setEmployee(userService.findById(53));
+                    ticket.setCreatedAt(LocalDateTime.now());
+                    ticket.setPriority(priority);
+                    ticket.setDescription("Imported ticket");
+                    if (expense != null) ticket.setExpense(expense);
+                    ticketService.save(ticket);
+                    ticketsImported++;
+                }
+            }
+        }
+
+        // Traitement du fichier 3 (CustomerBudget)
+        if (!file3.isEmpty()) {
+            tempFile3 = Files.createTempFile("csv_upload_", file3.getOriginalFilename());
+            Files.copy(file3.getInputStream(), tempFile3, StandardCopyOption.REPLACE_EXISTING);
+            List<JavaImportDataFeuille4Dto> importedData3 = csvService.importCsv(tempFile3.toString(), JavaImportDataFeuille4Dto.class);
+            for (int i = 0; i < importedData3.size(); i++) {
+                JavaImportDataFeuille4Dto dto = importedData3.get(i);
+                int lineNumber = i + 1;
+                Customer customer = customerService.findByEmail(dto.getCustomerEmail());
+                if (customer == null) {
+                    errors.add("Fichier 3, Ligne " + lineNumber + " : Client introuvable pour l'email : " + dto.getCustomerEmail());
+                    continue;
+                }
+                if (dto.getBudget() != null && dto.getBudget() < 0) {
+                    errors.add("Fichier 3, Ligne " + lineNumber + " : Budget négatif non autorisé : " + dto.getBudget());
+                    continue;
+                }
+                CustomerBudget budget = new CustomerBudget();
+                budget.setCustomer(customer);
+                budget.setLabel("Budget importé");
+                budget.setAmount(BigDecimal.valueOf(dto.getBudget()));
+                budget.setTransactionDate(LocalDate.now());
+                budget.setCreatedAt(LocalDateTime.now());
+                budget.setUpdatedAt(LocalDateTime.now());
+                budget.setUser(userService.findById(52));
+                customerBudgetService.save(budget);
+                budgetsImported++;
+            }
+        }
+
+        // Vérification des erreurs avant finalisation
+        if (!errors.isEmpty()) {
+            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+            model.addAttribute("errors", errors);
             return "database/my-database";
         }
 
-        List<String> errors = new ArrayList<>();
-        int customersImported = 0, leadsImported = 0, ticketsImported = 0, budgetsImported = 0;
-        Path tempFile1 = null, tempFile2 = null, tempFile3 = null;
+        // Réponse en cas de succès
+        String message = "Importation réussie : " +
+                customersImported + " clients, " +
+                leadsImported + " leads, " +
+                ticketsImported + " tickets, " +
+                budgetsImported + " budgets ajoutés.";
+        model.addAttribute("message", message);
 
+    } catch (Exception e) {
+        TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+        model.addAttribute("message", "Erreur lors de l'importation, aucune donnée enregistrée : " + e.getMessage());
+    } finally {
         try {
-            // Traitement du fichier 2 (Customers)
-            if (!file2.isEmpty()) {
-                tempFile2 = Files.createTempFile("csv_upload_", file2.getOriginalFilename());
-                Files.copy(file2.getInputStream(), tempFile2, StandardCopyOption.REPLACE_EXISTING);
-                List<JavaImportDataFeuille3Dto> importedData2 = csvService.importCsv(tempFile2.toString(), JavaImportDataFeuille3Dto.class);
-                for (int i = 0; i < importedData2.size(); i++) {
-                    JavaImportDataFeuille3Dto dto = importedData2.get(i);
-                    int lineNumber = i + 1;
-                    Customer existingCustomer = customerService.findByEmail(dto.getCustomerEmail());
-                    if (existingCustomer != null) {
-                        errors.add("Fichier 2, Ligne " + lineNumber + " : Email en double détecté : " + dto.getCustomerEmail());
-                        continue;
-                    }
-                    Customer customer = new Customer();
-                    customer.setEmail(dto.getCustomerEmail());
-                    customer.setName(dto.getCustomerName());
-                    customer.setUser(userService.findById(52));
-                    customer.setCustomerLoginInfo(null);
-                    customer.setCreatedAt(LocalDateTime.now());
-                    customer.setCountry("Unknown");
-                    customer.setPhone(generateRandomPhone());
-                    customer.setAddress(generateRandomAddress());
-                    customer.setCity("Unknown City");
-                    customerService.save(customer);
-                    customersImported++;
-                }
-            }
-
-            // Traitement du fichier 1 (Leads et Tickets)
-            if (!file1.isEmpty()) {
-                tempFile1 = Files.createTempFile("csv_upload_", file1.getOriginalFilename());
-                Files.copy(file1.getInputStream(), tempFile1, StandardCopyOption.REPLACE_EXISTING);
-                List<JavaImportDataFeuille1Dto> importedData1 = csvService.importCsv(tempFile1.toString(), JavaImportDataFeuille1Dto.class);
-                for (int i = 0; i < importedData1.size(); i++) {
-                    JavaImportDataFeuille1Dto dto = importedData1.get(i);
-                    int lineNumber = i + 1;
-                    Customer customer = customerService.findByEmail(dto.getCustomerEmail());
-                    if (customer == null) {
-                        errors.add("Fichier 1, Ligne " + lineNumber + " : Client introuvable pour l'email : " + dto.getCustomerEmail());
-                        continue;
-                    }
-                    Expense expense = null;
-                    if (dto.getExpense() != null) {
-                        double amount = dto.getExpense();
-                        if (amount < 0) {
-                            errors.add("Fichier 1, Ligne " + lineNumber + " : Montant négatif non autorisé : " + amount);
-                            continue;
-                        }
-                        expense = new Expense();
-                        expense.setAmount(amount);
-                        expense.setExpenseDate(LocalDate.now());
-                        expense = expenseService.save(expense);
-                    }
-                    if ("lead".equalsIgnoreCase(dto.getType())) {
-                        Lead lead = new Lead();
-                        lead.setName(dto.getSubjectOrName());
-                        lead.setStatus(dto.getStatus());
-                        lead.setCustomer(customer);
-                        lead.setManager(userService.findById(52));
-                        lead.setEmployee(userService.findById(53));
-                        lead.setCreatedAt(LocalDateTime.now());
-                        lead.setPhone(generateRandomPhone());
-                        lead.setGoogleDrive(false);
-                        if (expense != null) lead.setExpense(expense);
-                        leadService.save(lead);
-                        leadsImported++;
-                    } else if ("ticket".equalsIgnoreCase(dto.getType())) {
-                        Ticket ticket = new Ticket();
-                        ticket.setSubject(dto.getSubjectOrName());
-                        ticket.setStatus(dto.getStatus());
-                        ticket.setCustomer(customer);
-                        ticket.setManager(userService.findById(52));
-                        ticket.setEmployee(userService.findById(53));
-                        ticket.setCreatedAt(LocalDateTime.now());
-                        ticket.setPriority(generateRandomPriority());
-                        ticket.setDescription("Imported ticket");
-                        if (expense != null) ticket.setExpense(expense);
-                        ticketService.save(ticket);
-                        ticketsImported++;
-                    }
-                }
-            }
-
-            // Traitement du fichier 3 (CustomerBudget)
-            if (!file3.isEmpty()) {
-                tempFile3 = Files.createTempFile("csv_upload_", file3.getOriginalFilename());
-                Files.copy(file3.getInputStream(), tempFile3, StandardCopyOption.REPLACE_EXISTING);
-                List<JavaImportDataFeuille4Dto> importedData3 = csvService.importCsv(tempFile3.toString(), JavaImportDataFeuille4Dto.class);
-                for (int i = 0; i < importedData3.size(); i++) {
-                    JavaImportDataFeuille4Dto dto = importedData3.get(i);
-                    int lineNumber = i + 1;
-                    Customer customer = customerService.findByEmail(dto.getCustomerEmail());
-                    if (customer == null) {
-                        errors.add("Fichier 3, Ligne " + lineNumber + " : Client introuvable pour l'email : " + dto.getCustomerEmail());
-                        continue;
-                    }
-                    if (dto.getBudget() != null && dto.getBudget() < 0) {
-                        errors.add("Fichier 3, Ligne " + lineNumber + " : Budget négatif non autorisé : " + dto.getBudget());
-                        continue;
-                    }
-                    CustomerBudget budget = new CustomerBudget();
-                    budget.setCustomer(customer);
-                    budget.setLabel("Budget importé");
-                    budget.setAmount(BigDecimal.valueOf(dto.getBudget()));
-                    budget.setTransactionDate(LocalDate.now());
-                    budget.setCreatedAt(LocalDateTime.now());
-                    budget.setUpdatedAt(LocalDateTime.now());
-                    budget.setUser(userService.findById(52));
-                    customerBudgetService.save(budget);
-                    budgetsImported++;
-                }
-            }
-
-            // Vérification des erreurs avant finalisation
-            if (!errors.isEmpty()) {
-                TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
-                model.addAttribute("errors", errors);
-                return "database/my-database";
-            }
-
-            // Réponse en cas de succès
-            String message = "Importation réussie : " +
-                    customersImported + " clients, " +
-                    leadsImported + " leads, " +
-                    ticketsImported + " tickets, " +
-                    budgetsImported + " budgets ajoutés.";
-            model.addAttribute("message", message);
-
-        } catch (Exception e) {
-            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
-            model.addAttribute("message", "Erreur lors de l'importation, aucune donnée enregistrée : " + e.getMessage());
-        } finally {
-            try {
-                if (tempFile1 != null) Files.deleteIfExists(tempFile1);
-                if (tempFile2 != null) Files.deleteIfExists(tempFile2);
-                if (tempFile3 != null) Files.deleteIfExists(tempFile3);
-            } catch (IOException ignored) { }
-        }
-        
-        return "database/my-database";
+            if (tempFile1 != null) Files.deleteIfExists(tempFile1);
+            if (tempFile2 != null) Files.deleteIfExists(tempFile2);
+            if (tempFile3 != null) Files.deleteIfExists(tempFile3);
+        } catch (IOException ignored) { }
     }
+    
+    return "database/my-database";
+}
 
     // Helper methods for random data generation
     private String generateRandomPhone() {
@@ -253,6 +269,30 @@ public class DatabaseController {
 
     private String generateRandomAddress() {
         return (int)(Math.random() * 1000) + " Random Street";
-}
+    }
 
+    private static final String[] STATUSES = {
+        "meeting-to-schedule", "scheduled", "archived", "success", "assign-to-sales"
+    };
+    private static final String[] PRIORITIES = {
+        "low", "medium", "high", "closed", "urgent", "critical"
+    };
+
+    private static final String[] TYPES = {
+        "open","assigned","on-hold","in-progress","resolved","closed","reopened","pending-customer-response","escalated","archived"
+    };
+
+    private static final Random RANDOM = new Random();
+
+    public static String getRandomStatusLead() {
+        return STATUSES[RANDOM.nextInt(STATUSES.length)];
+    }
+
+    public static String getRandomPriority() {
+        return PRIORITIES[RANDOM.nextInt(PRIORITIES.length)];
+    }
+
+    public static String getRandomStatusTicket() {
+        return TYPES[RANDOM.nextInt(TYPES.length)];
+    }
 }
