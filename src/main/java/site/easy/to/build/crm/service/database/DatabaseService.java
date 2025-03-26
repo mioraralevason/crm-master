@@ -19,7 +19,7 @@ public class DatabaseService {
             jdbcTemplate.execute("SET FOREIGN_KEY_CHECKS = 0;");
             
             // Truncate all tables except the ones mentioned
-            String[] tablesToExclude = {"oauth_users", "users", "user_profite", "roles", "user_roles"};
+            String[] tablesToExclude = {"oauth_users", "users", "user_profite", "roles", "user_roles", "alerte_rate"};
             // Get all tables in the database (this query may vary depending on your DBMS)
             String query = "SHOW TABLES";
             jdbcTemplate.query(query, (rs) -> {
